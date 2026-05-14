@@ -3,7 +3,8 @@ ai_handler.py — EBOT BASIC-IA
 Detecta la intención del usuario usando NVIDIA NIM (Llama 3.1 8B).
 Se conecta a handlers.py sin romper nada existente.
 """
-
+from dotenv import load_dotenv
+load_dotenv()
 import os
 import json
 import requests
