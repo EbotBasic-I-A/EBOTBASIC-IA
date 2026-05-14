@@ -1,3 +1,4 @@
+import sys
 from datetime import datetime
 from storage import cargar_json, guardar_json
 from config  import ADMINS, MODO_TEST, MENSAJES_FILE
@@ -8,6 +9,7 @@ from services import (
     horarios_libres, agregar_turno, cancelar_turno,
     guardar_mensaje,
 )
+from ai_handler import detectar_intent, redirigir_por_intent  # ← NUEVO
 
 # ── Clave de estado en storage ────────────────────────────────────────────────
 ESTADO_KEY = "estados_usuarios"
@@ -157,8 +159,11 @@ def procesar(numero, body, resp):
         _flujo_bloquear_hora(numero, body, msg)
         return
 
-    # ── FALLBACK ──────────────────────────────────────────────────────────────
-    msg.body(MENU_PACIENTE)
+    # ── FALLBACK CON IA ───────────────────────────────────────────────────────
+    # Si el usuario escribió algo en lenguaje natural que no matcheó
+    # ningún estado, la IA detecta la intención y redirige.
+    intent_data = detectar_intent(body)
+    redirigir_por_intent(numero, intent_data, msg, sys.modules[__name__])
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -178,7 +183,9 @@ def manejar_menu(numero, body, msg):
     if accion:
         accion(numero, msg)
     else:
-        msg.body(MENU_PACIENTE)
+        # ── MENU también usa IA si el usuario escribe texto libre ─────────────
+        intent_data = detectar_intent(body)
+        redirigir_por_intent(numero, intent_data, msg, sys.modules[__name__])
 
 
 def _iniciar_turno(numero, msg):
