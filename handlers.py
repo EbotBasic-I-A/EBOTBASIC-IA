@@ -1,7 +1,7 @@
 import sys
 from datetime import datetime
 from storage import cargar_json, guardar_json
-from config  import ADMINS, MODO_TEST, MENSAJES_FILE
+from config  import ADMINS, MODO_TEST, MENSAJES_FILE, BOT_SALUDO, BOT_NO_ENTENDI
 from services import (
     generar_horarios, normalizar_hora,
     horario_bloqueado, bloquear_horario,
@@ -69,6 +69,12 @@ def procesar(numero, body, resp):
     texto  = body.lower().strip()
     msg    = resp.message()
     estado = get_user_state(numero, "estado", "MENU")
+
+    # ── PRIMER CONTACTO ───────────────────────────────────────────────────────
+    if not get_estado().get(numero):
+        set_user_state(numero, "estado", "MENU")
+        msg.body(BOT_SALUDO)
+        return
 
     # ── ACCESO ADMIN ──────────────────────────────────────────────────────────
 
@@ -160,9 +166,10 @@ def procesar(numero, body, resp):
         return
 
     # ── FALLBACK CON IA ───────────────────────────────────────────────────────
-    # Si el usuario escribió algo en lenguaje natural que no matcheó
-    # ningún estado, la IA detecta la intención y redirige.
     intent_data = detectar_intent(body)
+    if intent_data.get("intent") == "MENU" and intent_data.get("confianza", 1.0) < 0.5:
+        msg.body(f"{BOT_NO_ENTENDI}\n\n{MENU_PACIENTE}")
+        return
     redirigir_por_intent(numero, intent_data, msg, sys.modules[__name__])
 
 
