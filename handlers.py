@@ -9,12 +9,9 @@ from services import (
     horarios_libres, agregar_turno, cancelar_turno,
     guardar_mensaje,
 )
-from ai_handler import detectar_intent, redirigir_por_intent  # ← NUEVO
+from ai_handler import detectar_intent, redirigir_por_intent
 
-# ── Clave de estado en storage ────────────────────────────────────────────────
 ESTADO_KEY = "estados_usuarios"
-
-# ── Menús ─────────────────────────────────────────────────────────────────────
 
 MENU_PACIENTE = """🦙 E-Bot
 
@@ -35,10 +32,6 @@ MENU_ADMIN = """🛠 ADMIN
 6 Bloquear agenda
 7 Salir"""
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ESTADO
-# ═══════════════════════════════════════════════════════════════════════════════
 
 def get_estado():
     return cargar_json(ESTADO_KEY)
@@ -61,34 +54,32 @@ def clear_user(numero):
     save_estado(estado)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# ENTRADA PRINCIPAL
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def procesar(numero, body, resp):
     texto  = body.lower().strip()
     msg    = resp.message()
     estado = get_user_state(numero, "estado", "MENU")
 
-    # ── PRIMER CONTACTO ───────────────────────────────────────────────────────
-    if not get_estado().get(numero):
-        set_user_state(numero, "estado", "MENU")
-        msg.body(BOT_SALUDO)
-        return
-
-    # ── ACCESO ADMIN ──────────────────────────────────────────────────────────
+    # ── ACCESO ADMIN ── va PRIMERO, antes de todo ─────────────────────────────
 
     if MODO_TEST and texto == "adm":
         set_user_state(numero, "estado", "ADMIN")
         msg.body(MENU_ADMIN)
         return
 
-    if not MODO_TEST and numero in ADMINS and estado != "ADMIN":
-        set_user_state(numero, "estado", "ADMIN")
-        msg.body(MENU_ADMIN)
+    if not MODO_TEST and numero in ADMINS:
+        if estado != "ADMIN":
+            set_user_state(numero, "estado", "ADMIN")
+        manejar_admin(numero, body, msg)
         return
 
-    # ── RESET GLOBAL ─────────────────────────────────────────────────────────
+    # ── PRIMER CONTACTO ── solo para pacientes ────────────────────────────────
+
+    if not get_estado().get(numero):
+        set_user_state(numero, "estado", "MENU")
+        msg.body(BOT_SALUDO)
+        return
+
+    # ── RESET GLOBAL ──────────────────────────────────────────────────────────
 
     if texto in ["menu", "/start"]:
         clear_user(numero)
@@ -111,8 +102,6 @@ def procesar(numero, body, resp):
         manejar_menu(numero, body, msg)
         return
 
-    # ── FLUJO TURNO PACIENTE ─────────────────────────────────────────────────
-
     if estado == "TURNO_NOMBRE":
         set_user_state(numero, "nombre", body)
         set_user_state(numero, "estado", "TURNO_FECHA")
@@ -126,8 +115,6 @@ def procesar(numero, body, resp):
     if estado == "TURNO_HORA":
         _flujo_turno_hora(numero, body, msg)
         return
-
-    # ── FLUJO ADMIN ───────────────────────────────────────────────────────────
 
     if estado == "ADMIN_NUEVO_NOMBRE":
         set_user_state(numero, "adm_nombre", body)
@@ -173,10 +160,6 @@ def procesar(numero, body, resp):
     redirigir_por_intent(numero, intent_data, msg, sys.modules[__name__])
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# FLUJOS PACIENTE
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def manejar_menu(numero, body, msg):
     opciones = {
         "1": _iniciar_turno,
@@ -190,7 +173,6 @@ def manejar_menu(numero, body, msg):
     if accion:
         accion(numero, msg)
     else:
-        # ── MENU también usa IA si el usuario escribe texto libre ─────────────
         intent_data = detectar_intent(body)
         redirigir_por_intent(numero, intent_data, msg, sys.modules[__name__])
 
@@ -268,10 +250,6 @@ def _flujo_turno_hora(numero, body, msg):
     msg.body(f"✅ Turno confirmado\n📅 {fecha} a las {hora} hs\nNombre: {nombre}")
     clear_user(numero)
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FLUJOS ADMIN
-# ═══════════════════════════════════════════════════════════════════════════════
 
 def manejar_admin(numero, body, msg):
     turnos = obtener_turnos()
