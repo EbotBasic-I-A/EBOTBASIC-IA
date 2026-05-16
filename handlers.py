@@ -59,35 +59,38 @@ def procesar(numero, body, resp):
     msg    = resp.message()
     estado = get_user_state(numero, "estado", "MENU")
 
-    # ── ACCESO ADMIN ── va PRIMERO, antes de todo ─────────────────────────────
+    # ── ACCESO ADMIN ── solo cuando está en MENU o primer contacto ────────────
+    if not MODO_TEST and numero in ADMINS:
+        if not get_estado().get(numero) or estado == "MENU":
+            set_user_state(numero, "estado", "ADMIN")
+            msg.body(MENU_ADMIN)
+            return
+        # Si está en medio de un flujo admin, deja que el router lo maneje
 
+    # ── ACCESO ADMIN MODO TEST ────────────────────────────────────────────────
     if MODO_TEST and texto == "adm":
         set_user_state(numero, "estado", "ADMIN")
         msg.body(MENU_ADMIN)
         return
 
-    if not MODO_TEST and numero in ADMINS:
-        if estado != "ADMIN":
-            set_user_state(numero, "estado", "ADMIN")
-        manejar_admin(numero, body, msg)
-        return
-
     # ── PRIMER CONTACTO ── solo para pacientes ────────────────────────────────
-
     if not get_estado().get(numero):
         set_user_state(numero, "estado", "MENU")
         msg.body(BOT_SALUDO)
         return
 
     # ── RESET GLOBAL ──────────────────────────────────────────────────────────
-
     if texto in ["menu", "/start"]:
-        clear_user(numero)
-        msg.body(MENU_PACIENTE)
+        if numero in ADMINS and not MODO_TEST:
+            clear_user(numero)
+            set_user_state(numero, "estado", "ADMIN")
+            msg.body(MENU_ADMIN)
+        else:
+            clear_user(numero)
+            msg.body(MENU_PACIENTE)
         return
 
     # ── ROUTER ───────────────────────────────────────────────────────────────
-
     if estado == "ADMIN":
         manejar_admin(numero, body, msg)
         return
